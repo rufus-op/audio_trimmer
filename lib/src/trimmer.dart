@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:android_intent_plus/android_intent.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:ffmpeg_kit_flutter_full_gpl/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_full_gpl/return_code.dart';
@@ -56,7 +57,8 @@ class Trimmer {
     Directory? directory;
 
     if (storageDir == null) {
-      directory = await getApplicationDocumentsDirectory();
+      // Save to external storage public directory (Music in this case)
+      directory = Directory('/storage/emulated/0/Music/Trimmer');
     } else {
       switch (storageDir.toString()) {
         case 'temporaryDirectory':
@@ -68,24 +70,18 @@ class Trimmer {
           break;
 
         case 'externalStorageDirectory':
-          directory = await getExternalStorageDirectory();
+          directory = Directory('/storage/emulated/0/Music/Trimmer');
           break;
       }
     }
 
-    // Directory + folder name
-    final Directory directoryFolder = Directory('${directory!.path}/');
-
-    if (await directoryFolder.exists()) {
-      // If folder already exists return path
-      debugPrint('Exists');
-      return directoryFolder.path;
+    if (await directory!.exists()) {
+      debugPrint('Directory Exists: ${directory.path}');
+      return directory.path;
     } else {
-      debugPrint('Creating');
-      // If folder does not exists create folder and then return its path
-      final Directory directoryNewFolder =
-          await directoryFolder.create(recursive: true);
-      return directoryNewFolder.path;
+      final Directory newFolder = await directory.create(recursive: true);
+      debugPrint('Directory Created: ${newFolder.path}');
+      return newFolder.path;
     }
   }
 
@@ -158,7 +154,18 @@ class Trimmer {
   /// NOTE: The advanced option does not provide any safety check, so if wrong
   /// audio format is passed in [customAudioFormat], then the app may
   /// crash.
-  ///
+  void _notifyGallery(String outputPath) {
+    if (Platform.isAndroid) {
+      final AndroidIntent intent = AndroidIntent(
+        action: 'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
+        data: 'file://$outputPath',
+      );
+      intent.launch();
+    } else {
+      debugPrint("Media scan not needed for non-Android platforms.");
+    }
+  }
+
   Future<String> saveTrimmedAudio({
     required double startValue,
     required double endValue,
@@ -177,71 +184,56 @@ class Trimmer {
 
     String command;
 
-    // Formatting Date and Time
     String dateTime = DateFormat.yMMMd()
         .addPattern('-')
         .add_Hms()
         .format(DateTime.now())
         .toString();
 
-    // String _resultString;
-    String outputPath;
-    String? outputFormatString;
     String formattedDateTime = dateTime.replaceAll(' ', '');
-
-    debugPrint("DateTime: $dateTime");
-    debugPrint("Formatted: $formattedDateTime");
-
-    audioFileName ??= "${audioName}_trimmed:$formattedDateTime";
+    audioFileName ??= "${audioName}_trimmed_$formattedDateTime";
 
     audioFileName = audioFileName.replaceAll(' ', '_');
 
-    String path = await _createFolderInAppDocDir(
-      storageDir,
-    ).whenComplete(
-      () => debugPrint("Retrieved Trimmer folder"),
-    );
+    String path = await _createFolderInAppDocDir(storageDir)
+        .whenComplete(() => debugPrint("Retrieved Trimmer folder"));
 
     Duration startPoint = Duration(milliseconds: startValue.toInt());
     Duration endPoint = Duration(milliseconds: endValue.toInt());
 
-    // Checking the start and end point strings
     debugPrint("Start: ${startPoint.toString()} & End: ${endPoint.toString()}");
 
-    debugPrint(path);
-
-    if (outputFormat == null) {
-      outputFormat = FileFormat.mp3;
-      outputFormatString = outputFormat.toString();
-      debugPrint('OUTPUT: $outputFormatString');
-    } else {
-      outputFormatString = outputFormat.toString();
-    }
+    outputFormat ??= FileFormat.mp3;
+    String outputFormatString =
+        outputFormat == FileFormat.mp3 ? '.mp3' : '.mp4';
 
     String trimLengthCommand =
         '-y -i "$audioPath" -ss $startPoint -t ${endPoint - startPoint}';
 
     if (ffmpegCommand == null) {
       command = '$trimLengthCommand -acodec libmp3lame ';
-
       if (!applyAudioEncoding) {
         command += '-c:v copy ';
       }
     } else {
       command = '$trimLengthCommand $ffmpegCommand ';
-      outputFormatString = customAudioFormat;
     }
 
-    outputPath = '$path$audioFileName$outputFormatString';
-
+    String outputPath = '$path/$audioFileName$outputFormatString';
     command += '"$outputPath"';
-    debugPrint('ffmpeg trim command : $command');
+
+    debugPrint('ffmpeg trim command: $command');
+
     FFmpegKit.execute(command).then((value) async {
       final returnCode = await value.getReturnCode();
 
       if (ReturnCode.isSuccess(returnCode)) {
         debugPrint("FFmpeg processing completed successfully.");
-        debugPrint('Audio successfully saved');
+        debugPrint('Audio successfully saved at $outputPath');
+
+        // Notify the system about the new file
+        _notifyGallery(outputPath);
+
         onSave(outputPath);
       } else if (ReturnCode.isCancel(returnCode)) {
         debugPrint("FFmpeg command was cancelled.");
