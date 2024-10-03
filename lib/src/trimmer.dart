@@ -219,10 +219,10 @@ class Trimmer {
     }
 
     String trimLengthCommand =
-        ' -ss $startPoint -i "$audioPath" -t ${endPoint - startPoint}';
+        '-y -i "$audioPath" -ss $startPoint -t ${endPoint - startPoint}';
 
     if (ffmpegCommand == null) {
-      command = '$trimLengthCommand -c:a copy ';
+      command = '$trimLengthCommand -acodec aac -b:a 192k ';
 
       if (!applyAudioEncoding) {
         command += '-c:v copy ';
@@ -235,7 +235,7 @@ class Trimmer {
     outputPath = '$path$audioFileName$outputFormatString';
 
     command += '"$outputPath"';
-
+    debugPrint('ffmpeg trim command : $command');
     FFmpegKit.execute(command).then((value) async {
       final returnCode = await value.getReturnCode();
 
