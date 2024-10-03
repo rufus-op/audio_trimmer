@@ -15,8 +15,6 @@ dependencies:
   intl: ^0.18.1
   path: ^1.8.2
   path_provider: ^2.0.11
-  android_intent_plus:
-
 
 dev_dependencies:
   flutter_test:
