@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:ffmpeg_kit_flutter_full_gpl/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_full_gpl/ffmpeg_session.dart';
 import 'package:ffmpeg_kit_flutter_full_gpl/return_code.dart';
 import 'package:path/path.dart';
 import 'package:flutter/material.dart';
@@ -52,7 +51,6 @@ class Trimmer {
   }
 
   Future<String> _createFolderInAppDocDir(
-    String folderName,
     StorageDir? storageDir,
   ) async {
     Directory? directory;
@@ -76,8 +74,7 @@ class Trimmer {
     }
 
     // Directory + folder name
-    final Directory directoryFolder =
-        Directory('${directory!.path}/$folderName/');
+    final Directory directoryFolder = Directory('${directory!.path}/');
 
     if (await directoryFolder.exists()) {
       // If folder already exists return path
@@ -162,7 +159,7 @@ class Trimmer {
   /// audio format is passed in [customAudioFormat], then the app may
   /// crash.
   ///
-  Future<void> saveTrimmedAudio({
+  Future<String> saveTrimmedAudio({
     required double startValue,
     required double endValue,
     required Function(String? outputPath) onSave,
@@ -172,7 +169,6 @@ class Trimmer {
     String? customAudioFormat,
     int? fpsGIF,
     int? scaleGIF,
-    String? audioFolderName,
     String? audioFileName,
     StorageDir? storageDir,
   }) async {
@@ -196,14 +192,11 @@ class Trimmer {
     debugPrint("DateTime: $dateTime");
     debugPrint("Formatted: $formattedDateTime");
 
-    audioFolderName ??= "Trimmer";
-
     audioFileName ??= "${audioName}_trimmed:$formattedDateTime";
 
     audioFileName = audioFileName.replaceAll(' ', '_');
 
     String path = await _createFolderInAppDocDir(
-      audioFolderName,
       storageDir,
     ).whenComplete(
       () => debugPrint("Retrieved Trimmer folder"),
@@ -259,7 +252,7 @@ class Trimmer {
       }
     });
 
-    // return _outputPath;
+    return outputPath;
   }
 
   /// For getting the audio controller state, to know whether the
